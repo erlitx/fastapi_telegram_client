@@ -6,7 +6,7 @@
 This is a simple FastAPI application that can listen for Telegram messages, receive POST requests from Odoo, and send RPC requests to it.
 - Set your Odoo credentials in the `.env` file.
 - Build the Docker image: `docker build -t telegram_client .`
-- Run the Telegram Server container: `docker run -p 8000:8000 telegram_client`
+- Run the Telegram Server container: `docker run --network host -it telegram-client`
 
 ## 2. Installing Odoo Telegram Client module
 - Get the Odoo module and place it in your Odoo directory with your other custom addons: `git clone https://github.com/erlitx/telegram_client.git`

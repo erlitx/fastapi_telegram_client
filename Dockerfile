@@ -13,8 +13,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the application code to the working directory
 COPY telegram_api.py .
 COPY .env .
-COPY telegram_auth3.session .
-
 
 # Expose the container port
 EXPOSE 8000

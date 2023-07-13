@@ -176,6 +176,7 @@ async def create_new_odoo_message(telegram_message_data):
         odoo = odoorpc.ODOO(HOST, port=PORT)
         odoo.login(DB, USER, PWD)
         channel_id = odoo.env['mail.channel'].search([('telegram_dialog_id', '=', telegram_message_data['chat_dialog_id'])])
+        print(f'========= MY INFO: {channel_id}')
     except Exception as e:
         # Handle the exception or log the error message
         print(f"Error creating mail.channel: {e}")
