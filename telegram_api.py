@@ -52,7 +52,7 @@ class TelegramApi:
         self.api_id = api_id
         self.api_hash = api_hash
         self.session_name = session_name
-        self.client = TelegramClient(self.session_name, self.api_id, self.api_hash, system_version="4.16.30-vxCUSTOM")
+#        self.client = TelegramClient(self.session_name, self.api_id, self.api_hash, system_version="4.16.30-vxCUSTOM")
 #        self.message_text = message_text
 
     async def connect(self):
@@ -68,6 +68,7 @@ class TelegramApi:
 
     async def get_me(self):
         me = await self.client.get_me()
+        #print(f'TELEGRAM API = {TelegramClient()}')
         return me
 
 telegram_api = None
@@ -86,14 +87,32 @@ app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 
 
+
+# CHECK CONNECTION
+@app.post("/check_auth")
+async def check_auth(): 
+    global telegram_api
+    print(f'=========(/check_auth) MY INFO: telegram_api = {telegram_api}')
+    try:
+        auth_status = telegram_api.client.is_connected()
+        return {'auth_status': auth_status}
+    except Exception as e:
+        auth_status = False
+        return {'auth_status': auth_status}
+
+
+
 # GET INFO ABOUT MY TG ACCOUNT
 @app.post("/get_my_tg")
 async def check_connection(auth: TelegramAuth): #expect data as defined in TelegramAuth class
     global telegram_api
     print(f'========= MY INFO: telegram_api = {telegram_api}')
     if telegram_api is None:
+        print(f'========= step 1: {telegram_api}')
         telegram_api = TelegramApi(auth.phone_number, auth.api_id, auth.api_hash, auth.session_name)
+        print(f'========= step 2: {telegram_api}')
         await telegram_api.connect()
+        print(f'========= step 3: {telegram_api}')
         ###############
     # Check if a current connection is established
     if not telegram_api.client.is_connected():
@@ -102,7 +121,7 @@ async def check_connection(auth: TelegramAuth): #expect data as defined in Teleg
         print(f'========= MY INFO: TELEGRAM API IS CONNECTED')
 
 
-
+    print(f'========= TRYING TO CONNECT: {telegram_api}')
     me = await telegram_api.get_me()
     return {"username": me.username}
 
@@ -256,9 +275,18 @@ async def check_connection(auth: TelegramAuth): #expect data as defined in Teleg
         chat = await event.get_chat() # Get chat info (equivvalent to dialog)
         telegram_dialog_id = chat.id # The Id of the telegram user (or equivalent of the chat id)
         chat_username = chat.username
-        chat_first_name = chat.first_name
-        chat_last_name = chat.last_name
-        chat_phone = chat.phone
+        try:
+            chat_first_name = chat.first_name
+        except:
+            chat_first_name = 'No first name'
+        try:
+            chat_last_name = chat.last_name
+        except:
+            chat_last_name = 'No last name'
+        try:
+            chat_chat_phone = chat.phone
+        except:
+            chat_phone = 'No phone number'
         telegram_message_data = {'chat_dialog_id': chat.id,
                                  'chat_username': chat.username,
                                  'chat_first_name': chat.first_name,
@@ -275,28 +303,31 @@ async def check_connection(auth: TelegramAuth): #expect data as defined in Teleg
         print(f'User Id: {user.id} - Username: {user.username} - Text: {event.raw_text} - chat: {chat}')
 
         # POST MESSAGE IN ODOO
-        await create_new_odoo_message(telegram_message_data)
+        try:
+            await create_new_odoo_message(telegram_message_data)
+        except:
+            logger.error(f'--- await create_new_odoo_message(telegram_message_data) returned with an error')
 
     # LAUNCH A LOOP
     start_success = False
     if handler_started:
         print(f'========= MY INFO: handler_started {handler_started}')
         print(f'========= MY INFO:  "Handler already started"')
-        return {"Loop_start": "Handler already started"}
-    
-    try:
-        telegram_api.client.start()
-        telegram_api.client.run_until_disconnected()
-        start_success = True
-        handler_started = True
-        print(f"======= INFO: telegram_api.client started ===========")
-    except Exception as e:
-        print(f"=======Failed to start telegram_api.client: {e}===========")
-
-    if start_success:
-        return {"Loop_start": "OK"}
+        return {"Loop_start": "Handler already started", "auth_status": True}
     else:
-        return {"Loop_start": "Failed"}
+        try:
+            telegram_api.client.start()
+            telegram_api.client.run_until_disconnected()
+            start_success = True
+            handler_started = True
+            print(f"======= INFO: telegram_api.client started ===========")
+        except Exception as e:
+            print(f"=======Failed to start telegram_api.client: {e}===========")
+
+        if start_success:
+            return {"Loop_start": "OK", "auth_status": True}
+        else:
+            return {"Loop_start": "Failed", "auth_status": False}
 
 
 
