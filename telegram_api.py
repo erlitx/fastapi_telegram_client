@@ -57,7 +57,12 @@ class TelegramApi:
 
     async def connect(self):
         self.client = TelegramClient(self.session_name, self.api_id, self.api_hash, system_version="4.16.30-vxCUSTOM")
+        try:
+            print(f'-------CLASS----- self.client.is_user_authorized = {await self.client.is_user_authorized()}')
+        except Exception as e:
+            print(f'-------CLASS____ YOU ARE NOT CONNECTED')
         await self.client.start()
+
 
     async def disconnect(self):
         await self.client.disconnect()
@@ -90,14 +95,27 @@ logging.basicConfig(level=logging.INFO)
 
 # CHECK CONNECTION
 @app.post("/check_auth")
-async def check_auth(): 
+async def check_auth(auth: TelegramAuth): 
     global telegram_api
-    print(f'=========(/check_auth) MY INFO: telegram_api = {telegram_api}')
+    print(f'====1=====(/check_auth) MY INFO: telegram_api = {telegram_api}')
     try:
+        telegram_api = TelegramApi(auth.phone_number, auth.api_id, auth.api_hash, auth.session_name)
+        print(f'====2===== telegram_api = {telegram_api}')
+        telegram_api.client = TelegramClient(auth.session_name, auth.api_id, auth.api_hash, system_version="4.16.30-vxCUSTOM")
         auth_status = telegram_api.client.is_connected()
+        print(f'----3--- {auth_status}')
+        await telegram_api.client.connect()
+        auth_status = telegram_api.client.is_connected()
+        print(f'----4--- {auth_status}')
+        auth_status = await telegram_api.client.is_user_authorized()
+        print(f'----5--- {auth_status}')
+        #print(f'---1-- telegram_api.client.is_connected() = {await telegram_api.client.is_connected()}')
+        #print(f'---2-- telegram_api.client.is_user_authorized() = {await telegram_api.client.is_user_authorized()}')
         return {'auth_status': auth_status}
     except Exception as e:
         auth_status = False
+        print(f'----4--- {auth_status}')
+        #print(f'---3-- telegram_api.client.is_user_authorized(){telegram_api.client.is_user_authorized()}')
         return {'auth_status': auth_status}
 
 
@@ -155,8 +173,11 @@ def create_broadcast_new_channel(telegram_message_data):
 @app.post("/send_new_message")
 async def send_new_message(auth: TelegramAuth): #expect data as defined in TelegramAuth class
     global telegram_api
+    if telegram_api is None:
+        print(f'========= MY INFO: telegram_api is NONE = {telegram_api}')
+        return {'telegram_api': telegram_api}
     print(f'========= MY INFO: telegram_api = {telegram_api}')
-    print(f'========= MY INFO: telegram_api.is_connected = {telegram_api.client.is_connected()}')
+    #print(f'========= MY INFO: telegram_api.is_connected = {telegram_api.client.is_connected()}')
     #telegram_api = TelegramApi(auth.phone_number, auth.api_id, auth.api_hash, auth.session_name)
     #print(f'========= MY INFO: CREATE NEW telegram_api instance')
 
@@ -182,7 +203,7 @@ async def send_new_message(auth: TelegramAuth): #expect data as defined in Teleg
     print(f'========= MY INFO: TRYING TO SEND TG MESSAGE message = {message}')
     await telegram_api.send_message(recipient=recipient, message=message)
     print(f'========= MY INFO: MESSAGE SENT message = {message}')
-    return {'send_message': 'message sent'}
+    return {'send_message': 'message sent', 'telegram_api': True}
 
 
 
@@ -257,18 +278,22 @@ handler_started = False
 async def check_connection(auth: TelegramAuth): #expect data as defined in TelegramAuth class
     global telegram_api
     global handler_started
-    print(f'========= MY INFO: telegram_api = {telegram_api}')
+    print(f'=====1==== MY INFO: telegram_api = {telegram_api}')
     if telegram_api is None:
         telegram_api = TelegramApi(auth.phone_number, auth.api_id, auth.api_hash, auth.session_name)
+        print(f'=====2==== MY INFO: telegram_api = {telegram_api}')
         await telegram_api.connect()
-
+        print(f'=====3==== after await connect')
     # LISTEN FOR INCOMING MESSAGES
     @telegram_api.client.on(events.NewMessage(outgoing=False))
     async def readMessages(event):
     # first we get the user information
+        print(f'========= /start_event_loop: INSIDE EVENT LOOP')
         user = await telegram_api.client.get_entity(event.sender_id) #get an instance of a sender of a message
+        print(f'========= /start_event_loop: user = await telegram_api.client.get_entity(event.sender_id) = {user}')
         logger.info('NEW EVENT')
         id = user.id
+        print(f'========= id = user.id: {id}')
         username = user.username
 
         # INFO ABOUT CHAT/USER YOU ARE TALKING IN TELEGRAM
