@@ -47,33 +47,35 @@ logger.setLevel(logging.INFO)
 
 
 class TelegramApi:
-    def __init__(self, phone_number, api_id, api_hash, session_name):
+
+    instances = []
+
+    def __init__(self, phone_number, api_id, api_hash, session_name, system_version="4.16.30-vxCUSTOM"):
         self.phone_number = phone_number
         self.api_id = api_id
         self.api_hash = api_hash
         self.session_name = session_name
-#        self.client = TelegramClient(self.session_name, self.api_id, self.api_hash, system_version="4.16.30-vxCUSTOM")
-#        self.message_text = message_text
+        TelegramApi.instances.append(self)
+        #self.client = TelegramClient(self.session_name, self.api_id, self.api_hash, system_version="4.16.30-vxCUSTOM")
 
-    async def connect(self):
-        self.client = TelegramClient(self.session_name, self.api_id, self.api_hash, system_version="4.16.30-vxCUSTOM")
-        try:
-            print(f'-------CLASS----- self.client.is_user_authorized = {await self.client.is_user_authorized()}')
-        except Exception as e:
-            print(f'-------CLASS____ YOU ARE NOT CONNECTED')
-        await self.client.start()
+    # async def connect(self):
+    #     self.client = TelegramClient(self.session_name, self.api_id, self.api_hash, system_version="4.16.30-vxCUSTOM")
+    #     try:
+    #         print(f'-------CLASS----- self.client.is_user_authorized = {await self.client.is_user_authorized()}')
+    #     except Exception as e:
+    #         print(f'-------CLASS____ YOU ARE NOT CONNECTED')
+    #     await self.client.start()
 
 
     async def disconnect(self):
-        await self.client.disconnect()
+        await self.disconnect()
 
-    async def send_message(self, recipient, message):
-        await self.client.send_message(recipient, message)
+    async def send_new_message(self, recipient, message):
+        await self.send_message(recipient, message)
 #        await self.disconnect()
 
     async def get_me(self):
         me = await self.client.get_me()
-        #print(f'TELEGRAM API = {TelegramClient()}')
         return me
 
 telegram_api = None
@@ -97,25 +99,17 @@ logging.basicConfig(level=logging.INFO)
 @app.post("/check_auth")
 async def check_auth(auth: TelegramAuth): 
     global telegram_api
-    print(f'====1=====(/check_auth) MY INFO: telegram_api = {telegram_api}')
     try:
         telegram_api = TelegramApi(auth.phone_number, auth.api_id, auth.api_hash, auth.session_name)
-        print(f'====2===== telegram_api = {telegram_api}')
         telegram_api.client = TelegramClient(auth.session_name, auth.api_id, auth.api_hash, system_version="4.16.30-vxCUSTOM")
         auth_status = telegram_api.client.is_connected()
-        print(f'----3--- {auth_status}')
         await telegram_api.client.connect()
         auth_status = telegram_api.client.is_connected()
-        print(f'----4--- {auth_status}')
         auth_status = await telegram_api.client.is_user_authorized()
-        print(f'----5--- {auth_status}')
-        #print(f'---1-- telegram_api.client.is_connected() = {await telegram_api.client.is_connected()}')
-        #print(f'---2-- telegram_api.client.is_user_authorized() = {await telegram_api.client.is_user_authorized()}')
         return {'auth_status': auth_status}
     except Exception as e:
         auth_status = False
         print(f'----4--- {auth_status}')
-        #print(f'---3-- telegram_api.client.is_user_authorized(){telegram_api.client.is_user_authorized()}')
         return {'auth_status': auth_status}
 
 
@@ -124,21 +118,14 @@ async def check_auth(auth: TelegramAuth):
 @app.post("/get_my_tg")
 async def check_connection(auth: TelegramAuth): #expect data as defined in TelegramAuth class
     global telegram_api
-    print(f'========= MY INFO: telegram_api = {telegram_api}')
     if telegram_api is None:
-        print(f'========= step 1: {telegram_api}')
         telegram_api = TelegramApi(auth.phone_number, auth.api_id, auth.api_hash, auth.session_name)
-        print(f'========= step 2: {telegram_api}')
         await telegram_api.connect()
-        print(f'========= step 3: {telegram_api}')
-        ###############
     # Check if a current connection is established
     if not telegram_api.client.is_connected():
         print(f'========= MY INFO: TELEGRAM API IS NOT CONNECTED, TRYING TO CONNECT')
         await telegram_api.connect()
         print(f'========= MY INFO: TELEGRAM API IS CONNECTED')
-
-
     print(f'========= TRYING TO CONNECT: {telegram_api}')
     me = await telegram_api.get_me()
     return {"username": me.username}
@@ -177,31 +164,26 @@ async def send_new_message(auth: TelegramAuth): #expect data as defined in Teleg
         print(f'========= MY INFO: telegram_api is NONE = {telegram_api}')
         return {'telegram_api': telegram_api}
     print(f'========= MY INFO: telegram_api = {telegram_api}')
-    #print(f'========= MY INFO: telegram_api.is_connected = {telegram_api.client.is_connected()}')
-    #telegram_api = TelegramApi(auth.phone_number, auth.api_id, auth.api_hash, auth.session_name)
-    #print(f'========= MY INFO: CREATE NEW telegram_api instance')
 
     ###############
     # Check if a current connection is established
-    if not telegram_api.client.is_connected():
+    if not telegram_api.is_connected():
         print(f'========= MY INFO: TELEGRAM API IS NOT CONNECTED, TRYING TO CONNECT')
         await telegram_api.connect()
         print(f'========= MY INFO: TELEGRAM API IS CONNECTED')
 
     # Check if the connection is successful
-    if telegram_api.client.is_connected():
+    if telegram_api.is_connected():
         print(f'========= MY INFO: TELEGRAM API IS ALREADY CONNECTED')
     else:
         print("Failed to connect to Telegram")
     ###################
-
-    #recipient = 397727449
     print(f'========= MY INFO: TRYING TO SEND TG MESSAGE auth.recipient = {auth.recipient}')
     print(f'========= MY INFO: TRYING TO SEND TG MESSAGE auth.message = {auth.message_text}')
     recipient = auth.recipient # in Odoo this is a 'mail.channel' - 'telegram_dialog_id'
     message = auth.message_text# in Odoo this is a 'mail.message' - 'body'
     print(f'========= MY INFO: TRYING TO SEND TG MESSAGE message = {message}')
-    await telegram_api.send_message(recipient=recipient, message=message)
+    await telegram_api.send_message(recipient, message)
     print(f'========= MY INFO: MESSAGE SENT message = {message}')
     return {'send_message': 'message sent', 'telegram_api': True}
 
@@ -253,7 +235,6 @@ async def create_new_odoo_message(telegram_message_data):
             author_id = 2
             print(f'========= MY INFO: NO RES.PARTNER FOUND')
 
-        
         print(f'========= MY INFO: telegram_message_data["chat_dialog_id"] = {telegram_message_data["chat_dialog_id"]}')
         partner_id = odoo.env['res.partner'].search([('telegram_id', '=', telegram_message_data['chat_dialog_id'])])
         print(f'========= MY INFO: "res.partner" partner_id = {partner_id}')
@@ -280,16 +261,19 @@ async def check_connection(auth: TelegramAuth): #expect data as defined in Teleg
     global handler_started
     print(f'=====1==== MY INFO: telegram_api = {telegram_api}')
     if telegram_api is None:
-        telegram_api = TelegramApi(auth.phone_number, auth.api_id, auth.api_hash, auth.session_name)
-        print(f'=====2==== MY INFO: telegram_api = {telegram_api}')
-        await telegram_api.connect()
-        print(f'=====3==== after await connect')
+        return {'start_loop': 'telegram_api_none'}
+        # telegram_api = TelegramApi(auth.phone_number, auth.api_id, auth.api_hash, auth.session_name)
+        # print(f'=====2==== MY INFO: telegram_api = {telegram_api}')
+        # await telegram_api.connect()
+        # print(f'=====3==== after await connect')
+   
+    
     # LISTEN FOR INCOMING MESSAGES
-    @telegram_api.client.on(events.NewMessage(outgoing=False))
+    @telegram_api.on(events.NewMessage(outgoing=False))
     async def readMessages(event):
     # first we get the user information
         print(f'========= /start_event_loop: INSIDE EVENT LOOP')
-        user = await telegram_api.client.get_entity(event.sender_id) #get an instance of a sender of a message
+        user = await telegram_api.get_entity(event.sender_id) #get an instance of a sender of a message
         print(f'========= /start_event_loop: user = await telegram_api.client.get_entity(event.sender_id) = {user}')
         logger.info('NEW EVENT')
         id = user.id
@@ -300,18 +284,6 @@ async def check_connection(auth: TelegramAuth): #expect data as defined in Teleg
         chat = await event.get_chat() # Get chat info (equivvalent to dialog)
         telegram_dialog_id = chat.id # The Id of the telegram user (or equivalent of the chat id)
         chat_username = chat.username
-        try:
-            chat_first_name = chat.first_name
-        except:
-            chat_first_name = 'No first name'
-        try:
-            chat_last_name = chat.last_name
-        except:
-            chat_last_name = 'No last name'
-        try:
-            chat_chat_phone = chat.phone
-        except:
-            chat_phone = 'No phone number'
         telegram_message_data = {'chat_dialog_id': chat.id,
                                  'chat_username': chat.username,
                                  'chat_first_name': chat.first_name,
@@ -341,8 +313,8 @@ async def check_connection(auth: TelegramAuth): #expect data as defined in Teleg
         return {"Loop_start": "Handler already started", "auth_status": True}
     else:
         try:
-            telegram_api.client.start()
-            telegram_api.client.run_until_disconnected()
+            telegram_api.start()
+            telegram_api.run_until_disconnected()
             start_success = True
             handler_started = True
             print(f"======= INFO: telegram_api.client started ===========")
@@ -355,18 +327,22 @@ async def check_connection(auth: TelegramAuth): #expect data as defined in Teleg
             return {"Loop_start": "Failed", "auth_status": False}
 
 
-
-
 # FIRST AUTHENTICATION 
 # Get SMS code
 @app.post("/sms_code_request")
 async def sms_code_request(session_name, api_id, api_hash, phone_number):
-    client = TelegramClient(session_name, api_id, api_hash, system_version="4.16.30-vxCUSTOM")
-    await client.connect()
-    result = await client.send_code_request(phone_number)
+    global telegram_api
+    telegram_api = None
+    print(f'====INSTANCES (request): {TelegramApi.instances}')
+    telegram_api = TelegramClient(session_name, api_id, api_hash, system_version="4.16.30-vxCUSTOM")
+        # Check if the client is connected, and connect if it's not
+    if not telegram_api.is_connected():
+        print(f'=====(/sms_code_request):  client is not connected')
+        await telegram_api.connect()
+    result = await telegram_api.send_code_request(phone_number)
     phone_hash = result.phone_code_hash
     print(phone_hash)
-    await client.disconnect()  # Disconnect the client
+    #await client.disconnect()  # Disconnect the client
     return {'phone_hash': phone_hash}
 
 
@@ -374,14 +350,16 @@ async def sms_code_request(session_name, api_id, api_hash, phone_number):
 @app.post("/send_code")
 async def verify_sms_code(session_name, api_id, api_hash, phone_number, sms_code, phone_hash):
     print(f"======= INFO[send_code()]: POST REQUEST RECIEVED")
-    client = TelegramClient(session_name, api_id, api_hash, system_version="4.16.30-vxCUSTOM")
-    await client.connect()
-    await client.sign_in(phone_number, code=sms_code, phone_code_hash=phone_hash)
-    me = await client.get_me()
+    print(f'====INSTANCES (code): {TelegramApi.instances}')
+    global telegram_api
+    #telegram_api = TelegramClient(session_name, api_id, api_hash, system_version="4.16.30-vxCUSTOM")
+    #await telegram_api.connect()
+    await telegram_api.sign_in(phone_number, code=sms_code, phone_code_hash=phone_hash)
+    me = await telegram_api.get_me()
     print(f"======= INFO[send_code()]: me.username = {me.username}")
-    await client.disconnect()  # Disconnect the client
-    client = None
+    #await client.disconnect()  # Disconnect the client
     return {"username": me.username}
+
 
 if __name__ == "__main__":
     uvicorn_app = "telegram_api:app"
